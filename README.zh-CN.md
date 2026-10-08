@@ -4,6 +4,8 @@
 
 [English](README.md) · **简体中文**
 
+<p align="center"><img src="docs/demo.gif" width="720" alt="在用户主页点开「最早」标签，从第一条帖子开始阅读"></p>
+
 一个 Chrome 插件：在 X 用户主页增加「最早」标签，按从旧到新的顺序阅读该用户的历史帖子，界面与 X 原生样式保持一致。
 
 非官方项目，与 X Corp. 无关。

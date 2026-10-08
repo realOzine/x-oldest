@@ -4,6 +4,8 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
+<p align="center"><img src="docs/demo.gif" width="720" alt="Opening the Oldest tab on a profile and reading from the first post"></p>
+
 A Chrome extension that adds an **Oldest** tab to X profile pages, so you can read a user's posts from the earliest to the latest, in a view that matches X's own look.
 
 Unofficial. Not affiliated with X Corp.
