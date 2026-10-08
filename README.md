@@ -10,24 +10,34 @@ Unofficial. Not affiliated with X Corp.
 
 ## Install
 
-1. Clone or download this repository.
-2. Open `chrome://extensions` and turn on **Developer mode**.
-3. Click **Load unpacked** and select the repository folder.
-4. Open any profile on x.com while signed in, then click the **Oldest** tab.
+1. Clone this repository.
+2. Build it: `npm install && npm run build`.
+3. Open `chrome://extensions` and turn on **Developer mode**.
+4. Click **Load unpacked** and select the repository folder.
+5. Open any profile on x.com while signed in, then click the **Oldest** tab.
 
-Requires Chrome 111 or later.
+Requires Chrome 111 or later, and Node.js 18 or later to build.
+
+## Development
+
+`npm run watch` rebuilds on every change. After a rebuild, reload the extension in `chrome://extensions`, then reload the x.com page.
 
 ## Project structure
 
 ```
 manifest.json          Extension manifest (MV3, no permissions)
-src/engine/            Data engine
+package.json           Build scripts (esbuild)
+dist/                  Build output: engine.js and ui.js (not committed)
+src/engine/            Data engine, bundled into dist/engine.js
+  main.js                Entry point
+  errors.js              XoError, an error with a kind
   transport.js           Requests to X, using context borrowed from the page
   normalize.js           X's response objects -> plain post and user objects
   reader.js              Walks history forward, window by window
   api.js                 resolveUser and openReader, for the UI
 src/store.js           Local cache (IndexedDB)
-src/ui/                Reading view
+src/ui/                Reading view, bundled into dist/ui.js
+  main.js                Entry point
   i18n.js                Strings and date formats (English, Chinese)
   cards.js               Renders one post
   page.js                Reads X's page: profile detection, theme, tab
@@ -43,6 +53,7 @@ docs/spce.md           Original spec (Chinese)
 ## How it works
 
 - X's timeline only goes back a limited number of posts, so the extension uses X's search with a time range instead.
+- The source is plain ES modules, bundled by esbuild into two scripts.
 - It runs inside the x.com page and reuses your existing session. Request headers, feature flags, query IDs and request signatures are all taken from X's own runtime; nothing is hard-coded.
 - Search returns newest first. The reader walks forward window by window, collects each window completely, then shows it in ascending order.
 - Loaded posts and reading position are cached locally in IndexedDB. No data leaves your browser, and no credentials are stored.

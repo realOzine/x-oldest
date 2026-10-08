@@ -4,49 +4,73 @@
 
 ## 1. 一句话概括
 
-插件往 x.com 页面里注入两组脚本：一组负责"向 X 要数据"，一组负责"把数据存下来、画出来，并跟上 X 的页面切换"。没有后台 Service Worker，没有申请任何权限，所有代码都跑在页面自己的 JS 环境（MAIN world）里。
+插件往 x.com 页面里注入两个脚本：一个负责"向 X 要数据"，一个负责"把数据存下来、画出来，并跟上 X 的页面切换"。没有后台 Service Worker，没有申请任何权限，所有代码都跑在页面自己的 JS 环境（MAIN world）里。
 
 ## 2. 文件与职责
 
+源码是 ES 模块，用 esbuild 打包成两个文件后才被 Chrome 加载。
+
 | 文件 | 行数 | 职责 | 碰不碰 DOM |
 | --- | --- | --- | --- |
-| `src/engine/transport.js` | 222 | 请求通道：从 X 借请求上下文，发 GraphQL 请求，把失败分类 | 否 |
-| `src/engine/normalize.js` | 203 | 归一化：把 X 的返回整理成统一的帖子、用户对象 | 否 |
-| `src/engine/reader.js` | 154 | 读取器：把"只能倒着查"变成"正着读"的算法 | 否 |
-| `src/engine/api.js` | 48 | 把上面三者组装成界面要用的两个函数 | 否 |
-| `src/store.js` | 102 | 本地缓存：IndexedDB 里存帖子和阅读进度 | 否 |
-| `src/ui/i18n.js` | 68 | 中英文文案和日期格式 | 只读语言 |
-| `src/ui/cards.js` | 146 | 把一条帖子画成一张卡片 | 只创建节点 |
-| `src/ui/page.js` | 105 | 读 X 的页面：识别主页、取主题色、克隆标签 | 只读 X 的 DOM |
-| `src/ui/view.js` | 186 | 阅读区的 DOM：工具栏、卡片列表、状态栏、点击处理 | 是 |
-| `src/ui/app.js` | 418 | 总控：会话、开关阅读模式、加载循环、缓存、跟随路由 | 少量 |
+| `src/engine/main.js` | 12 | 引擎包的入口：装钩子，把接口挂到 `window.__xoldest` | 否 |
+| `src/engine/errors.js` | 16 | `XoError`：带种类的错误 | 否 |
+| `src/engine/transport.js` | 201 | 请求通道：从 X 借请求上下文，发 GraphQL 请求，把失败分类 | 否 |
+| `src/engine/normalize.js` | 194 | 归一化：把 X 的返回整理成统一的帖子、用户对象 | 否 |
+| `src/engine/reader.js` | 147 | 读取器：把"只能倒着查"变成"正着读"的算法 | 否 |
+| `src/engine/api.js` | 42 | 把上面几个组装成界面要用的两个函数 | 否 |
+| `src/ui/main.js` | 11 | 界面包的入口：取到引擎接口后启动界面 | 否 |
+| `src/ui/app.js` | 421 | 总控：会话、开关阅读模式、加载循环、缓存、跟随路由 | 少量 |
+| `src/ui/view.js` | 179 | 阅读区的 DOM：工具栏、卡片列表、状态栏、点击处理 | 是 |
+| `src/ui/cards.js` | 137 | 把一条帖子画成一张卡片 | 只创建节点 |
+| `src/ui/page.js` | 96 | 读 X 的页面：识别主页、取主题色、克隆标签 | 只读 X 的 DOM |
+| `src/ui/i18n.js` | 60 | 中英文文案和日期格式 | 只读语言 |
+| `src/store.js` | 94 | 本地缓存：IndexedDB 里存帖子和阅读进度 | 否 |
 | `src/ui/ui.css` | 305 | 样式：隐藏原生时间线、卡片外观 | — |
 
-`manifest.json` 把它们分成两组注入：`engine/` 下的四个文件在 `document_start` 注入，其余在 `document_idle` 注入。引擎必须抢在 X 自己的脚本之前运行，因为它要在 X 发出第一个请求前把钩子装好。
+## 3. 构建与模块连接
 
-## 3. 模块如何相连
+### 3.1 构建
 
-项目没有打包工具，每个文件是一个立即执行函数，通过全局对象 `window.__xoldest` 交换接口。每个文件开头的注释都写明了它往这个对象上挂了什么。
+`npm run build` 调用 esbuild，从两个入口各打出一个文件：
+
+| 入口 | 产物 | 注入时机 |
+| --- | --- | --- |
+| `src/engine/main.js` | `dist/engine.js` | `document_start` |
+| `src/ui/main.js` | `dist/ui.js` | `document_idle` |
+
+`manifest.json` 引用的是 `dist/` 下的这两个文件和 `src/ui/ui.css`。`dist/` 不进版本库，所以克隆后要先构建一次。开发时用 `npm run watch`，改完源码自动重新打包。产物没有压缩，在浏览器里调试时能直接读。
+
+### 3.2 为什么是两个包
+
+两部分必须在不同的时间运行：
+
+- 引擎要抢在 X 自己的脚本之前，因为它要在 X 发出第一个请求前把钩子装好。
+- 界面要等页面基本就绪，因为它一启动就要读页面语言、找标签栏。
+
+如果打成一个包，要么钩子装晚了，要么界面跑早了。
+
+### 3.3 两个包之间唯一的连接
+
+两个包是各自独立的脚本，不能互相 `import`。它们之间只有一个约定：引擎入口把 `{ resolveUser, openReader }` 挂到 `window.__xoldest`，界面入口从那里取。全局空间里只多出这一个名字，源码里也只有两个入口文件碰它。
+
+两个入口还各做一次重复注入检查：引擎发现 `window.__xoldest` 已存在就什么都不做，界面发现已启动过就不再启动。
+
+### 3.4 包内的依赖
+
+包内是普通的 `import` / `export`，依赖只朝一个方向走，没有循环：
 
 ```
-                    ┌────────────── ui/app.js ──────────────┐
-                    │                  │                    │
-                    ▼                  ▼                    ▼
-               ui/view.js         ui/page.js            store.js
-                    │                  │
-                    ▼                  │
-               ui/cards.js             │
-                    │                  │
-                    └────► ui/i18n.js ◄┘
+dist/engine.js                          dist/ui.js
 
-      ui/app.js ──► engine/api.js ──► engine/reader.js
-                          │      ──► engine/normalize.js
-                          └────────► engine/transport.js
+engine/main.js                          ui/main.js
+   ├─► transport.js ─► errors.js           └─► app.js ─┬─► view.js ─► cards.js ─► i18n.js
+   └─► api.js ─┬─► transport.js                        ├─► page.js ─► i18n.js
+               ├─► normalize.js                        └─► store.js
+               ├─► reader.js ─► errors.js
+               └─► errors.js
 ```
 
-依赖只朝一个方向走，没有循环。唯一需要"反向通知"的地方是阅读区里的用户操作（切换筛选、点重试、滚到底、点链接）：`view.js` 不直接调用 `app.js`，而是由 `app.js` 启动时通过 `view.bind({ restart, retry, nearEnd, navigate })` 把四个回调交给它。
-
-每个文件开头都有一句类似 `if (!E || E.Reader) return;` 的检查：前一个条件保证依赖已就绪，后一个防止同一段脚本被注入两次。
+唯一需要"反向通知"的地方是阅读区里的用户操作（切换筛选、点重试、滚到底、点链接）：`view.js` 不导入 `app.js`，而是由 `app.js` 启动时通过 `view.bind({ restart, retry, nearEnd, navigate })` 把四个回调交给它。
 
 ## 4. 数据引擎（src/engine/）
 
@@ -56,7 +80,7 @@
 
 | 需要的东西 | 怎么得到 | 所在函数 |
 | --- | --- | --- |
-| 认证头 | 包住 `XMLHttpRequest` 的三个方法，X 每发一个 GraphQL 请求就记下它的头 | `observe` |
+| 认证头 | 包住 `XMLHttpRequest` 的三个方法，X 每发一个 GraphQL 请求就记下它的头 | `installObserver` |
 | feature 开关的取值 | 同一个钩子，从请求的 URL 或 body 里读出并累积 | `observe` |
 | 接口的查询 ID、它声明的开关列表 | 扫描 X 的 webpack 模块源码，用正则匹配接口定义 | `loadRuntime` |
 | 每次请求的签名 | 同一次扫描里找到 X 的签名模块，直接调用 | `loadRuntime` |
@@ -119,7 +143,7 @@
 
 三个设计要点：
 
-- **读取器不认识 X**。构造时传入一个 `fetchPage(since, until)` 函数，它只管调用。真正的搜索请求在 `api.js` 里。它对其他文件唯一的依赖是 `XoError`，所以算法可以脱离网络单独测试。
+- **读取器不认识 X**。构造时传入一个 `fetchPage(since, until)` 函数，它只管调用。真正的搜索请求在 `api.js` 里。它只导入 `errors.js` 里的 `XoError`，所以算法可以脱离网络单独测试。
 - **状态可续**。全部进度就是 `cursor` 和 `span` 两个数，存进缓存就能续读。
 - **中途失败不白费**。填充到一半出错时，已拿到的页留在 `pending` 里，再次调用 `next()` 从断点继续。
 
