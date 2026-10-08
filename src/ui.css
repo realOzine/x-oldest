@@ -1,0 +1,305 @@
+/* While the reading view is on, X's own timeline is hidden (not removed) and restored on exit. */
+html[data-xo-active] [data-testid="primaryColumn"] section[role="region"] {
+  display: none !important;
+}
+
+#xo-root {
+  display: none;
+}
+
+html[data-xo-active] #xo-root {
+  display: block;
+}
+
+/* Tab */
+html[data-xo-active] [data-xo-hide] {
+  visibility: hidden;
+}
+
+html[data-xo-active] [role="tablist"] a[aria-selected="true"]:not([data-xo-a]) span {
+  color: var(--xo-sub) !important;
+  font-weight: 500 !important;
+}
+
+[data-xo-tab][data-xo-on] a span {
+  color: var(--xo-text) !important;
+  font-weight: 700 !important;
+}
+
+[data-xo-tab] a > div {
+  position: relative;
+}
+
+[data-xo-tab][data-xo-on] a > div::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 100%;
+  min-width: 56px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: var(--xo-accent);
+}
+
+/* Reading view */
+#xo-root {
+  color: var(--xo-text);
+  font-family: TwitterChirp, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+#xo-root a {
+  color: var(--xo-accent);
+  text-decoration: none;
+}
+
+#xo-root a:hover {
+  text-decoration: underline;
+}
+
+.xo-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--xo-border);
+  color: var(--xo-sub);
+  font-size: 13px;
+  line-height: 16px;
+}
+
+.xo-earliest {
+  flex: 1 1 200px;
+}
+
+.xo-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.xo-opt input[type="checkbox"] {
+  accent-color: var(--xo-accent);
+  margin: 0;
+}
+
+.xo-opt input[type="month"] {
+  padding: 2px 6px;
+  border: 1px solid var(--xo-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--xo-text);
+  color-scheme: light dark;
+  font: inherit;
+}
+
+.xo-clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--xo-sub);
+  font: inherit;
+  cursor: pointer;
+}
+
+.xo-clear:hover {
+  text-decoration: underline;
+}
+
+.xo-month {
+  padding: 12px 16px 4px;
+  color: var(--xo-sub);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.xo-card {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--xo-border);
+  cursor: pointer;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
+.xo-card:hover {
+  background: var(--xo-hover);
+}
+
+.xo-avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--xo-border);
+}
+
+.xo-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.xo-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.xo-head {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  color: var(--xo-sub);
+  white-space: nowrap;
+}
+
+#xo-root .xo-name {
+  overflow: hidden;
+  color: var(--xo-text);
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.xo-handle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#xo-root .xo-time {
+  flex: none;
+  color: var(--xo-sub);
+}
+
+.xo-replyto {
+  color: var(--xo-sub);
+}
+
+.xo-text {
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+.xo-media {
+  display: grid;
+  gap: 2px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid var(--xo-border);
+  border-radius: 16px;
+}
+
+.xo-media[data-n="2"],
+.xo-media[data-n="3"],
+.xo-media[data-n="4"] {
+  grid-template-columns: 1fr 1fr;
+  aspect-ratio: 16 / 9;
+}
+
+.xo-media[data-n="3"],
+.xo-media[data-n="4"] {
+  grid-template-rows: 1fr 1fr;
+}
+
+.xo-media[data-n="3"] > :first-child {
+  grid-row: span 2;
+}
+
+.xo-photo,
+.xo-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  background: var(--xo-border);
+}
+
+.xo-media[data-n="1"] > * {
+  height: auto;
+  max-height: 510px;
+}
+
+.xo-video {
+  background: #000;
+  object-fit: contain;
+}
+
+.xo-placeholder {
+  display: block;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--xo-border);
+  border-radius: 16px;
+}
+
+.xo-quote {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--xo-border);
+  border-radius: 16px;
+}
+
+.xo-quote:hover {
+  background: var(--xo-hover);
+}
+
+.xo-quote.xo-missing {
+  color: var(--xo-sub);
+  cursor: default;
+}
+
+.xo-qhead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.xo-qavatar {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.xo-stats {
+  margin-top: 12px;
+  color: var(--xo-sub);
+  font-size: 13px;
+  line-height: 16px;
+}
+
+.xo-status {
+  min-height: 1px;
+  color: var(--xo-sub);
+  text-align: center;
+}
+
+.xo-status[data-kind] {
+  padding: 24px 16px 96px;
+}
+
+.xo-retry {
+  margin-left: 12px;
+  padding: 4px 16px;
+  border: 1px solid var(--xo-border);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--xo-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.xo-retry:hover {
+  background: var(--xo-hover);
+}
