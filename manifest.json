@@ -13,14 +13,14 @@
   "content_scripts": [
     {
       "matches": ["https://x.com/*"],
-      "js": ["src/engine.js"],
+      "js": ["src/engine/transport.js", "src/engine/normalize.js", "src/engine/reader.js", "src/engine/api.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
       "matches": ["https://x.com/*"],
-      "js": ["src/store.js", "src/ui.js"],
-      "css": ["src/ui.css"],
+      "js": ["src/store.js", "src/ui/i18n.js", "src/ui/cards.js", "src/ui/page.js", "src/ui/view.js", "src/ui/app.js"],
+      "css": ["src/ui/ui.css"],
       "run_at": "document_idle",
       "world": "MAIN"
     }

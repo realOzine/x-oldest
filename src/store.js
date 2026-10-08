@@ -1,6 +1,8 @@
 // Local cache of loaded posts and reading progress, one record set per profile.
 // It lives in IndexedDB on the x.com origin and holds post content only: no request headers,
 // cookies or tokens. If IndexedDB is unavailable every call resolves to "nothing cached".
+//
+// Exports on window.__xoldest: store.{ load, write, clear }.
 (() => {
   const E = window.__xoldest;
   if (!E || E.store) return;

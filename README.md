@@ -23,10 +23,19 @@ Requires Chrome 111 or later.
 
 ```
 manifest.json          Extension manifest (MV3, no permissions)
-src/engine.js          Data engine: requests, normalisation, forward reader
+src/engine/            Data engine
+  transport.js           Requests to X, using context borrowed from the page
+  normalize.js           X's response objects -> plain post and user objects
+  reader.js              Walks history forward, window by window
+  api.js                 resolveUser and openReader, for the UI
 src/store.js           Local cache (IndexedDB)
-src/ui.js              Profile integration and post cards
-src/ui.css             Styles
+src/ui/                Reading view
+  i18n.js                Strings and date formats (English, Chinese)
+  cards.js               Renders one post
+  page.js                Reads X's page: profile detection, theme, tab
+  view.js                Toolbar, card list, status line, clicks
+  app.js                 Sessions, loading loop, cache, route tracking
+  ui.css                 Styles
 icons/                 Extension icons
 scripts/make-icons.mjs Regenerates the icons
 docs/architecture.md   Architecture notes (Chinese)
@@ -71,10 +80,19 @@ See [docs/architecture.md](docs/architecture.md) for details.
 
 ```
 manifest.json          扩展清单（MV3，不申请任何权限）
-src/engine.js          数据引擎：请求、数据整理、向前推进的读取器
+src/engine/            数据引擎
+  transport.js           向 X 发请求，请求上下文借自页面
+  normalize.js           把 X 的返回整理成统一的帖子、用户对象
+  reader.js              按时间窗口向前读取历史
+  api.js                 给界面用的 resolveUser 和 openReader
 src/store.js           本地缓存（IndexedDB）
-src/ui.js              主页集成与帖子卡片
-src/ui.css             样式
+src/ui/                阅读界面
+  i18n.js                文案与日期格式（中文、英文）
+  cards.js               渲染一条帖子
+  page.js                读 X 的页面：识别主页、主题、标签
+  view.js                工具栏、卡片列表、状态栏、点击处理
+  app.js                 会话、加载循环、缓存、跟随路由
+  ui.css                 样式
 icons/                 扩展图标
 scripts/make-icons.mjs 重新生成图标
 docs/architecture.md   架构说明
