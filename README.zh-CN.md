@@ -10,17 +10,22 @@
 
 ## 安装
 
-1. 克隆本仓库。
-2. 构建：`npm install && npm run build`。
-3. 打开 `chrome://extensions`，开启「开发者模式」。
-4. 点击「加载已解压的扩展程序」，选择仓库目录。
-5. 在已登录的 x.com 打开任意用户主页，点击「最早」标签。
+1. 从[最新发布页](https://github.com/realOzine/x-oldest/releases/latest)下载 `x-oldest-<版本号>.zip` 并解压。
+2. 打开 `chrome://extensions`，开启「开发者模式」。
+3. 点击「加载已解压的扩展程序」，选择解压出来的目录。
+4. 在已登录的 x.com 打开任意用户主页，点击「最早」标签。
 
-需要 Chrome 111 或更高版本；构建需要 Node.js 18 或更高版本。
+需要 Chrome 111 或更高版本。
 
 ## 开发
 
-`npm run watch` 会在每次改动后自动重新构建。构建后先在 `chrome://extensions` 重新加载插件，再刷新 x.com 页面。
+需要 Node.js 18 或更高版本。
+
+- `npm install && npm run build`：构建到 `dist/`。把仓库目录本身作为已解压的扩展加载即可。
+- `npm run watch`：每次改动后自动重新构建。构建后先在 `chrome://extensions` 重新加载插件，再刷新 x.com 页面。
+- `npm run release`：先构建，再把可加载的插件写到 `release/x-oldest/`，并压缩为 `release/x-oldest-<版本号>.zip`。
+
+发布新版本：修改 `manifest.json` 里的 `version`，提交，再推送对应的标签（`v<版本号>`）。GitHub Actions 会自动构建压缩包并挂到新的发布上。
 
 ## 项目结构
 
@@ -28,6 +33,7 @@
 manifest.json          扩展清单（MV3，不申请任何权限）
 package.json           构建脚本（esbuild）
 dist/                  构建产物：engine.js 和 ui.js（不进版本库）
+release/               打包好的插件及压缩包（不进版本库）
 src/engine/            数据引擎，打包为 dist/engine.js
   main.js                入口
   errors.js              XoError，带种类的错误
@@ -46,6 +52,7 @@ src/ui/                阅读界面，打包为 dist/ui.js
   ui.css                 样式
 icons/                 扩展图标
 scripts/make-icons.mjs 重新生成图标
+scripts/release.mjs    打包插件
 docs/architecture.md   架构说明
 docs/spce.md           原始需求文档
 ```

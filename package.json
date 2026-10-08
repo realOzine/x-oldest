@@ -6,7 +6,8 @@
   "license": "MIT",
   "scripts": {
     "build": "esbuild engine=src/engine/main.js ui=src/ui/main.js --bundle --format=iife --target=chrome111 --outdir=dist",
-    "watch": "npm run build -- --watch"
+    "watch": "npm run build -- --watch",
+    "release": "npm run build && node scripts/release.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

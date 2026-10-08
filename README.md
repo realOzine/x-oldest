@@ -10,17 +10,22 @@ Unofficial. Not affiliated with X Corp.
 
 ## Install
 
-1. Clone this repository.
-2. Build it: `npm install && npm run build`.
-3. Open `chrome://extensions` and turn on **Developer mode**.
-4. Click **Load unpacked** and select the repository folder.
-5. Open any profile on x.com while signed in, then click the **Oldest** tab.
+1. Download `x-oldest-<version>.zip` from the [latest release](https://github.com/realOzine/x-oldest/releases/latest) and unzip it.
+2. Open `chrome://extensions` and turn on **Developer mode**.
+3. Click **Load unpacked** and select the unzipped folder.
+4. Open any profile on x.com while signed in, then click the **Oldest** tab.
 
-Requires Chrome 111 or later, and Node.js 18 or later to build.
+Requires Chrome 111 or later.
 
 ## Development
 
-`npm run watch` rebuilds on every change. After a rebuild, reload the extension in `chrome://extensions`, then reload the x.com page.
+Requires Node.js 18 or later.
+
+- `npm install && npm run build` builds into `dist/`. Load the repository folder itself as an unpacked extension.
+- `npm run watch` rebuilds on every change. After a rebuild, reload the extension in `chrome://extensions`, then reload the x.com page.
+- `npm run release` builds, then writes the loadable extension to `release/x-oldest/` and zips it as `release/x-oldest-<version>.zip`.
+
+To publish a release, set `version` in `manifest.json`, commit, and push a matching tag (`v<version>`). GitHub Actions builds the zip and attaches it to a new release.
 
 ## Project structure
 
@@ -28,6 +33,7 @@ Requires Chrome 111 or later, and Node.js 18 or later to build.
 manifest.json          Extension manifest (MV3, no permissions)
 package.json           Build scripts (esbuild)
 dist/                  Build output: engine.js and ui.js (not committed)
+release/               Packaged extension and its zip (not committed)
 src/engine/            Data engine, bundled into dist/engine.js
   main.js                Entry point
   errors.js              XoError, an error with a kind
@@ -46,6 +52,7 @@ src/ui/                Reading view, bundled into dist/ui.js
   ui.css                 Styles
 icons/                 Extension icons
 scripts/make-icons.mjs Regenerates the icons
+scripts/release.mjs    Packages the extension
 docs/architecture.md   Architecture notes (Chinese)
 docs/spce.md           Original spec (Chinese)
 ```
