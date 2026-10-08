@@ -16,12 +16,12 @@ export async function resolveUser(screenName) {
   return user;
 }
 
-// One page (newest first) of a user's posts with since <= time < until, in Unix seconds.
+// One page (newest first) of a user's own posts, replies excluded, with since <= time < until,
+// in Unix seconds.
 // `since_time`/`until_time` are used rather than `since`/`until`, whose day boundaries are not UTC.
-async function searchWindow(user, since, until, withReplies) {
+async function searchWindow(user, since, until) {
   // since_time's boundary inclusiveness is not documented; overlap by a second and dedupe by id.
-  const rawQuery =
-    `from:${user.screenName} since_time:${since - 1} until_time:${until}` + (withReplies ? '' : ' -filter:replies');
+  const rawQuery = `from:${user.screenName} since_time:${since - 1} until_time:${until} -filter:replies`;
   const data = await gql('SearchTimeline', {
     rawQuery,
     count: PAGE_SIZE,
@@ -36,7 +36,7 @@ async function searchWindow(user, since, until, withReplies) {
   return tweets.filter((t) => t.userId === user.id && !Number.isNaN(t.createdAt));
 }
 
-// A Reader over one user's posts. `options` are the Reader's, plus `withReplies`.
-export function openReader(user, { withReplies, ...options }) {
-  return new Reader((since, until) => searchWindow(user, since, until, !!withReplies), options);
+// A Reader over one user's posts. `options` are the Reader's.
+export function openReader(user, options) {
+  return new Reader((since, until) => searchWindow(user, since, until), options);
 }

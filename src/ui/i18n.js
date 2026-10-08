@@ -7,10 +7,7 @@ export const T = lang.startsWith('zh')
   ? {
       tab: '最早',
       earliest: (d) => `目前找到的最早帖子：${d}`,
-      fromDate: (d) => `从 ${d} 开始阅读，此前的时间段尚未查询`,
-      withReplies: '包含回复',
       clearCache: '清除缓存',
-      startFrom: '起始月份',
       resolving: '正在读取账号信息…',
       searching: (d) => `正在查找 ${d} 之后的帖子…`,
       collecting: (n) => `已找到 ${n} 条，正在补全这一时段…`,
@@ -30,10 +27,7 @@ export const T = lang.startsWith('zh')
   : {
       tab: 'Oldest',
       earliest: (d) => `Earliest post found so far: ${d}`,
-      fromDate: (d) => `Reading from ${d}; earlier periods have not been searched`,
-      withReplies: 'Include replies',
       clearCache: 'Clear cache',
-      startFrom: 'Start month',
       resolving: 'Loading account…',
       searching: (d) => `Looking for posts after ${d}…`,
       collecting: (n) => `Found ${n} posts so far, fetching the rest of this period…`,
@@ -55,7 +49,7 @@ export const T = lang.startsWith('zh')
 export const fmt = {
   day: new Intl.DateTimeFormat(lang, { year: 'numeric', month: 'short', day: 'numeric' }),
   month: new Intl.DateTimeFormat(lang, { year: 'numeric', month: 'long' }),
-  // Search windows and the start month are UTC, so their labels are formatted in UTC too.
+  // Search windows are UTC, so their labels are formatted in UTC too.
   monthUtc: new Intl.DateTimeFormat(lang, { year: 'numeric', month: 'long', timeZone: 'UTC' }),
   full: new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }),
   clock: new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit' }),

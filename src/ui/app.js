@@ -38,7 +38,6 @@ function getSession(p) {
       key: p.key,
       sn: p.sn,
       user: null, // resolved account; see engine/normalize.js
-      opts: { withReplies: false, start: null }, // start: Unix seconds, or null for "the beginning"
       t0: Date.now(), // the search range ends here; later posts are not picked up
 
       // Loading
@@ -86,10 +85,12 @@ function activate(p, restoreY) {
   view.mount(s, p);
   ensureTab(p);
   if (!s.reader && !s.loading) start(s);
-  if (restoreY != null) {
-    // Repeated because the page keeps settling for a moment after a route change.
-    for (const delay of [0, 120, 400]) setTimeout(() => active === s && window.scrollTo(0, restoreY), delay);
-  }
+  if (restoreY == null) return;
+  // Back from a post. The list was rebuilt around the reading position, so that is what to
+  // return to; the old scroll offset only still holds above the list, in the profile header.
+  if (s.anchor) scrollToAnchor(s);
+  // Repeated because the page keeps settling for a moment after a route change.
+  else for (const delay of [0, 120, 400]) setTimeout(() => active === s && window.scrollTo(0, restoreY), delay);
 }
 
 // `explicit` is a deliberate exit by the user, as opposed to navigating to a post and back.
@@ -103,9 +104,9 @@ function deactivate(explicit) {
   document.querySelectorAll('[data-xo-hide]').forEach((el) => el.removeAttribute('data-xo-hide'));
 }
 
-// Throws the session and its cache away and starts over with `opts`. The account is kept, so
-// it is not looked up again.
-function restart(s, opts) {
+// Throws the session and its cache away and starts over. The account is kept, so it is not
+// looked up again.
+function restart(s) {
   const p = page.findProfile();
   if (!p || p.key !== s.key) return;
   if (s.reader) s.reader.cancel();
@@ -114,14 +115,16 @@ function restart(s, opts) {
   store.clear(s.key);
   const fresh = getSession(p);
   fresh.user = s.user;
-  fresh.opts = opts;
   fresh.skipCache = true;
   activate(p);
 }
 
 // X's router listens for popstate, so this navigates without a full page load.
 function navigate(to) {
-  if (active) active.lastY = window.scrollY;
+  if (active) {
+    active.lastY = window.scrollY;
+    updateAnchor(active); // the view is about to go away; this is where to come back to
+  }
   history.pushState({}, '', to);
   window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
 }
@@ -144,7 +147,6 @@ function saveProgress(s, batch) {
     key: s.key,
     sn: s.sn,
     user: s.user,
-    opts: s.opts,
     cursor: s.reader.cursor,
     span: s.reader.span,
     anchor: s.anchor,
@@ -159,22 +161,25 @@ function saveProgress(s, batch) {
   });
 }
 
-// Fills a new session from the cache, if there is one: posts, options, progress and position.
+// Fills a new session from the cache, if there is one: posts, progress and position.
 async function restoreFromCache(s) {
   if (s.skipCache || s.cacheChecked) return;
   s.cacheChecked = true;
   const cached = await store.load(s.key);
   if (!cached || sessions.get(s.key) !== s) return;
+  // Earlier versions could include replies or start from a chosen month. A cache written that
+  // way does not hold the plain history, so it is dropped rather than continued.
+  const old = cached.meta.opts;
+  if (old && (old.withReplies || old.start)) {
+    store.clear(s.key);
+    return;
+  }
   s.user = cached.meta.user;
-  s.opts = cached.meta.opts;
   s.tweets = cached.tweets;
   s.resume = { cursor: cached.meta.cursor, span: cached.meta.span };
   s.anchor = cached.meta.anchor || null;
   s.rev = cached.meta.rev || null;
-  if (s.els) {
-    view.syncControls(s);
-    view.appendCards(s, s.tweets);
-  }
+  if (s.els) view.reset(s);
   scrollToAnchor(s);
 }
 
@@ -220,15 +225,9 @@ async function start(s) {
     if (!s.user) s.user = await engine.resolveUser(s.sn);
     // Start a day before the join date, as a margin.
     const joined = s.user.createdAt ? Math.floor(s.user.createdAt / 1000) - DAY : FIRST_POST_TIME;
-    // A start before the account existed would only burn searches on empty windows.
-    if (s.opts.start != null && s.opts.start <= joined) {
-      s.opts.start = null;
-      view.syncControls(s);
-    }
     s.reader = engine.openReader(s.user, {
-      start: s.resume ? s.resume.cursor : s.opts.start ?? joined,
+      start: s.resume ? s.resume.cursor : joined,
       end: Math.floor(s.t0 / 1000),
-      withReplies: s.opts.withReplies,
       span: s.resume && s.resume.span,
       seenIds: s.tweets.map((t) => t.id),
     });
@@ -246,6 +245,7 @@ async function start(s) {
 // the viewport. Does nothing when a load is already running, finished, waiting or pointless.
 async function loadMore(s) {
   if (sessions.get(s.key) !== s) return; // replaced by a restart
+  if (view.fill(s)) return; // show what is already loaded before fetching more
   if (s.loading || s.done || !s.reader || s.waitTimer || document.hidden) return;
   s.loading = true;
   let next = { kind: 'idle' };
@@ -253,7 +253,7 @@ async function loadMore(s) {
     const batch = await s.reader.next((p) => setStatus(s, { kind: 'searching', from: p.from, found: p.found || 0 }));
     s.tweets.push(...batch);
     saveProgress(s, batch);
-    if (s.els && s.els.root.isConnected) view.appendCards(s, batch, true);
+    view.fill(s, true);
     if (s.reader.done) {
       s.done = true;
       next = { kind: 'end' };
@@ -348,8 +348,9 @@ function tick() {
       // The user navigated away. Remember where they were in case they come back.
       suspended = { key: active.key, scrollY: active.lastY };
       deactivate();
-    } else {
-      view.mount(active, p);
+    } else if (view.mount(active, p)) {
+      // X re-rendered the page and the view had to be rebuilt; put the reader back in place.
+      scrollToAnchor(active);
     }
   } else if (suspended && !page.isPostRoute() && !page.onProfileRoot(suspended.key)) {
     // Only a round trip to a post page resumes the view; wandering elsewhere drops it.

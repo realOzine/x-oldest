@@ -1,14 +1,22 @@
 // View: the reading view's DOM. A toolbar, the list of cards and a status line.
 //
 // The view draws a session (see app.js) and reports what the user did; it decides nothing itself.
+//
+// Cards are rendered lazily. A session can hold thousands of posts, and putting them all in the
+// page at once freezes it. So the list only holds `s.tweets[first..last)`: it starts around the
+// reading position and grows a chunk at a time, downwards as the end of the list nears the
+// viewport and upwards as its start does.
+//
 // Its elements are kept on the session as `s.els`:
 //   root, list, status       the container, the cards, the area below them
+//   top                      marks the start of the list, to know when earlier cards are wanted
 //   statusText               the line of text inside `status`, above the placeholder cards
-//   earliest, replies, month toolbar parts
-//   observer                 watches the status line to know when the end of the list is near
-//   lastMonth                month of the last card added, to know when a month heading is due
+//   earliest                 the note in the toolbar
+//   observer                 watches `top` and `status` coming near the viewport
+//   first, last              the range of `s.tweets` that is in the list
+//   lastMonth                month of the last card in the list, to know when a heading is due
 // What the user does is passed to the `actions` given to bind():
-//   restart(s, opts)   an option changed, or the cache is to be cleared
+//   restart(s)         the cache is to be cleared
 //   retry(s)           the retry button was pressed
 //   nearEnd(s)         the end of the list came within reach of the viewport
 //   navigate(url)      a link or card within X was clicked
@@ -16,8 +24,9 @@
 import { card, h } from './cards.js';
 import { T, fmt } from './i18n.js';
 
-const FIRST_MONTH = '2006-03'; // when X opened
-const PRELOAD_MARGIN = '2000px 0px'; // how far below the viewport counts as "near the end"
+const PRELOAD_MARGIN = '2000px 0px'; // how far outside the viewport counts as "near"
+const CHUNK = 30; // cards added to the list at a time
+const LEAD = 5; // cards rendered above the reading position to begin with
 const PLACEHOLDERS = 5; // ui.css shows fewer once the list has cards
 
 let actions = null;
@@ -26,33 +35,18 @@ export function bind(handlers) {
   actions = handlers;
 }
 
-// 'YYYY-MM' in UTC, the format of <input type="month">.
-const isoMonth = (ms) => new Date(ms).toISOString().slice(0, 7);
-
 // ---- Mounting ----
 
 // Makes sure the session's view exists inside `p.host`, building it if X has re-rendered the
-// page and thrown the previous one away. Safe to call repeatedly.
+// page and thrown the previous one away. Safe to call repeatedly. Returns true if it was built.
 export function mount(s, p) {
-  if (s.els && s.els.root.isConnected && s.els.root.parentElement === p.host) return;
+  if (s.els && s.els.root.isConnected && s.els.root.parentElement === p.host) return false;
   document.querySelectorAll('#xo-root').forEach((el) => el.remove());
   if (s.els) s.els.observer.disconnect();
 
   const earliest = h('span', { class: 'xo-earliest' });
-  const replies = h('input', { type: 'checkbox' });
-  replies.addEventListener('change', () => actions.restart(s, { ...s.opts, withReplies: replies.checked }));
-  const month = h('input', { type: 'month', 'aria-label': T.startFrom });
-  month.min = FIRST_MONTH;
-  month.max = isoMonth(s.t0);
-  month.addEventListener('change', () => {
-    // Typing a year fires change on partial values such as 0002; restarting on those would
-    // rebuild this input mid-entry.
-    if (month.value && (month.value < month.min || month.value > month.max)) return;
-    const start = month.value ? Date.parse(month.value + '-01T00:00:00Z') / 1000 : null;
-    if (start === s.opts.start) return;
-    actions.restart(s, { ...s.opts, start });
-  });
 
+  const top = h('div', { class: 'xo-top' });
   const list = h('div', { class: 'xo-list' });
   const statusText = h('div', { class: 'xo-status-text' });
   // Built once and shown by ui.css while loading, so progress updates do not restart their animation.
@@ -69,37 +63,35 @@ export function mount(s, p) {
       'div',
       { class: 'xo-bar' },
       earliest,
-      h('label', { class: 'xo-opt' }, replies, h('span', { text: T.withReplies })),
-      h('label', { class: 'xo-opt' }, h('span', { text: T.startFrom }), month),
-      h('button', { class: 'xo-clear', type: 'button', text: T.clearCache, onclick: () => actions.restart(s, s.opts) }),
+      h('button', { class: 'xo-clear', type: 'button', text: T.clearCache, onclick: () => actions.restart(s) }),
     ),
+    top,
     list,
     status,
   );
   root.addEventListener('click', onRootClick);
 
-  // The status line sits below the last card, so it nearing the viewport means more is needed.
+  // `top` sits above the first card and the status line below the last, so either of them
+  // nearing the viewport means more cards are needed on that side.
   const observer = new IntersectionObserver(
     (entries) => {
-      s.near = entries[entries.length - 1].isIntersecting;
-      if (s.near) actions.nearEnd(s);
+      const near = new Map(entries.map((e) => [e.target, e.isIntersecting])); // latest state wins
+      if (near.get(top)) showEarlier(s);
+      if (near.has(status)) {
+        s.near = near.get(status);
+        if (s.near) actions.nearEnd(s);
+      }
     },
     { rootMargin: PRELOAD_MARGIN },
   );
+  observer.observe(top);
   observer.observe(status);
 
-  s.els = { root, list, status, statusText, earliest, replies, month, observer, lastMonth: null };
-  syncControls(s);
+  s.els = { root, list, status, top, statusText, earliest, observer, first: 0, last: 0, lastMonth: null };
   p.host.append(root);
-  appendCards(s, s.tweets);
+  reset(s);
   renderStatus(s);
-}
-
-// Makes the toolbar controls show the session's options.
-export function syncControls(s) {
-  if (!s.els) return;
-  s.els.replies.checked = !!s.opts.withReplies;
-  s.els.month.value = s.opts.start ? isoMonth(s.opts.start * 1000) : '';
+  return true;
 }
 
 // ---- Status ----
@@ -116,12 +108,7 @@ export function renderStatus(s) {
   const { status: box, statusText: el, earliest } = s.els;
   const status = s.status;
 
-  // With a chosen start month the first post shown is not the earliest known, so say that instead.
-  earliest.textContent = s.opts.start
-    ? T.fromDate(fmt.monthUtc.format(s.opts.start * 1000))
-    : s.tweets.length
-      ? T.earliest(fmt.day.format(s.tweets[0].createdAt))
-      : '';
+  earliest.textContent = s.tweets.length ? T.earliest(fmt.day.format(s.tweets[0].createdAt)) : '';
 
   el.replaceChildren();
   box.removeAttribute('data-kind');
@@ -161,23 +148,71 @@ function placeholder() {
 
 // ---- Cards ----
 
-// Adds cards to the end of the list, with a heading wherever a new month begins.
-// `fresh` cards have just been loaded and fade in; cards restored from memory or cache do not.
-export function appendCards(s, tweets, fresh) {
-  if (!tweets.length) return;
+const monthKey = (t) => {
+  const d = new Date(t.createdAt);
+  return d.getFullYear() * 12 + d.getMonth();
+};
+
+// Builds cards for `tweets`, with a heading wherever the month differs from `prevMonth`.
+function buildCards(tweets, prevMonth, fresh) {
   const frag = document.createDocumentFragment();
   for (const t of tweets) {
-    const d = new Date(t.createdAt);
-    const key = d.getFullYear() * 12 + d.getMonth();
-    if (key !== s.els.lastMonth) {
-      s.els.lastMonth = key;
-      frag.append(h('div', { class: 'xo-month', text: fmt.month.format(d) }));
+    const key = monthKey(t);
+    if (key !== prevMonth) {
+      prevMonth = key;
+      frag.append(h('div', { class: 'xo-month', text: fmt.month.format(t.createdAt) }));
     }
     const el = card(t);
     if (fresh) el.classList.add('xo-in');
     frag.append(el);
   }
-  s.els.list.append(frag);
+  return frag;
+}
+
+// An observer only reports changes. Observing an element again makes it report the current
+// state, so adding one chunk per report keeps going for as long as more is needed, without
+// doing it all in one long task.
+function recheck(s, el) {
+  s.els.observer.unobserve(el);
+  s.els.observer.observe(el);
+}
+
+// Empties the list and starts it again around the reading position (`s.anchor`), or at the
+// first post if there is none.
+export function reset(s) {
+  const at = s.anchor ? s.tweets.findIndex((t) => t.id === s.anchor.id) : -1;
+  s.els.list.replaceChildren();
+  s.els.first = s.els.last = Math.max(0, at - LEAD);
+  s.els.lastMonth = null;
+  fill(s);
+  recheck(s, s.els.top); // the list may now start mid-history, right below the viewport's reach
+}
+
+// Adds the next chunk of loaded posts to the end of the list. Returns false if every loaded
+// post is already there. `fresh` cards have just been loaded and fade in.
+export function fill(s, fresh) {
+  if (!s.els || !s.els.root.isConnected || s.els.last >= s.tweets.length) return false;
+  const chunk = s.tweets.slice(s.els.last, s.els.last + CHUNK);
+  s.els.list.append(buildCards(chunk, s.els.lastMonth, fresh));
+  s.els.last += chunk.length;
+  s.els.lastMonth = monthKey(chunk[chunk.length - 1]);
+  recheck(s, s.els.status);
+  return true;
+}
+
+// Adds the previous chunk to the start of the list. The browser's scroll anchoring keeps what
+// is on screen where it is while the list grows above it.
+function showEarlier(s) {
+  const { list, first } = s.els;
+  if (first === 0) return;
+  const chunk = s.tweets.slice(Math.max(0, first - CHUNK), first);
+  // The list starts with a heading for its first card's month. If the cards going in above
+  // end in that same month, the heading no longer marks where the month begins.
+  const joins = first < s.tweets.length && monthKey(chunk[chunk.length - 1]) === monthKey(s.tweets[first]);
+  if (joins && list.firstChild && list.firstChild.classList.contains('xo-month')) list.firstChild.remove();
+  list.prepend(buildCards(chunk, null));
+  s.els.first -= chunk.length;
+  recheck(s, s.els.top);
 }
 
 // ---- Clicks ----

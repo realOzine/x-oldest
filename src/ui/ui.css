@@ -73,30 +73,14 @@ html[data-xo-active] [role="tablist"] a[aria-selected="true"]:not([data-xo-a]) s
   line-height: 16px;
 }
 
+/* A one-pixel marker above the first card; view.js watches it to render earlier cards. */
+.xo-top {
+  height: 1px;
+  margin-bottom: -1px;
+}
+
 .xo-earliest {
   flex: 1 1 200px;
-}
-
-.xo-opt {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-
-.xo-opt input[type="checkbox"] {
-  accent-color: var(--xo-accent);
-  margin: 0;
-}
-
-.xo-opt input[type="month"] {
-  padding: 2px 6px;
-  border: 1px solid var(--xo-border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--xo-text);
-  color-scheme: light dark;
-  font: inherit;
 }
 
 .xo-clear {
