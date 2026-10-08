@@ -285,7 +285,104 @@ html[data-xo-active] [role="tablist"] a[aria-selected="true"]:not([data-xo-a]) s
 }
 
 .xo-status[data-kind] {
-  padding: 24px 16px 96px;
+  padding-bottom: 96px;
+}
+
+.xo-status[data-kind] .xo-status-text {
+  padding: 24px 16px;
+}
+
+.xo-status[data-busy] .xo-status-text {
+  padding: 16px;
+  border-bottom: 1px solid var(--xo-border);
+}
+
+/* Placeholder cards, shown while posts are loading */
+.xo-skels {
+  display: none;
+}
+
+.xo-status[data-busy] .xo-skels {
+  display: block;
+}
+
+/* Below existing cards the placeholders come first, as the next posts would, and two are enough. */
+.xo-list:not(:empty) + .xo-status[data-busy] {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.xo-list:not(:empty) + .xo-status[data-busy] .xo-status-text {
+  border-bottom: 0;
+}
+
+.xo-list:not(:empty) + .xo-status .xo-skel:nth-child(n + 3) {
+  display: none;
+}
+
+.xo-skel {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--xo-border);
+}
+
+.xo-skel-avatar,
+.xo-skel-line {
+  background: var(--xo-border);
+  animation: xo-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.xo-skel-avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.xo-skel-line {
+  height: 12px;
+  margin: 4px 0 12px;
+  border-radius: 6px;
+}
+
+.xo-skel-line:nth-child(1) {
+  width: 35%;
+}
+
+.xo-skel-line:nth-child(2) {
+  width: 92%;
+}
+
+.xo-skel-line:nth-child(3) {
+  width: 60%;
+}
+
+.xo-card.xo-in {
+  animation: xo-in 0.2s ease-out;
+}
+
+@keyframes xo-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+@keyframes xo-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xo-skel-avatar,
+  .xo-skel-line,
+  .xo-card.xo-in {
+    animation: none;
+  }
 }
 
 .xo-retry {

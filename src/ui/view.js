@@ -2,7 +2,8 @@
 //
 // The view draws a session (see app.js) and reports what the user did; it decides nothing itself.
 // Its elements are kept on the session as `s.els`:
-//   root, list, status       the container, the cards, the line below them
+//   root, list, status       the container, the cards, the area below them
+//   statusText               the line of text inside `status`, above the placeholder cards
 //   earliest, replies, month toolbar parts
 //   observer                 watches the status line to know when the end of the list is near
 //   lastMonth                month of the last card added, to know when a month heading is due
@@ -17,6 +18,7 @@ import { T, fmt } from './i18n.js';
 
 const FIRST_MONTH = '2006-03'; // when X opened
 const PRELOAD_MARGIN = '2000px 0px'; // how far below the viewport counts as "near the end"
+const PLACEHOLDERS = 5; // ui.css shows fewer once the list has cards
 
 let actions = null;
 
@@ -52,7 +54,14 @@ export function mount(s, p) {
   });
 
   const list = h('div', { class: 'xo-list' });
-  const status = h('div', { class: 'xo-status' });
+  const statusText = h('div', { class: 'xo-status-text' });
+  // Built once and shown by ui.css while loading, so progress updates do not restart their animation.
+  const status = h(
+    'div',
+    { class: 'xo-status' },
+    statusText,
+    h('div', { class: 'xo-skels', 'aria-hidden': 'true' }, Array.from({ length: PLACEHOLDERS }, placeholder)),
+  );
   const root = h(
     'div',
     { id: 'xo-root' },
@@ -79,7 +88,7 @@ export function mount(s, p) {
   );
   observer.observe(status);
 
-  s.els = { root, list, status, earliest, replies, month, observer, lastMonth: null };
+  s.els = { root, list, status, statusText, earliest, replies, month, observer, lastMonth: null };
   syncControls(s);
   p.host.append(root);
   appendCards(s, s.tweets);
@@ -98,13 +107,13 @@ export function syncControls(s) {
 // Draws `s.status` below the list, and the "earliest post" note in the toolbar.
 //   idle       nothing to show
 //   resolving  looking up the account
-//   searching  fetching the window that starts at `from` (Unix seconds)
+//   searching  fetching the window that starts at `from` (Unix seconds); `found` posts so far
 //   rate       rate limited; loading resumes at `resumeAt` (ms)
 //   end        the whole range has been read
 //   error      `error` is the XoError
 export function renderStatus(s) {
   if (!s.els) return;
-  const { status: el, earliest } = s.els;
+  const { status: box, statusText: el, earliest } = s.els;
   const status = s.status;
 
   // With a chosen start month the first post shown is not the earliest known, so say that instead.
@@ -115,11 +124,14 @@ export function renderStatus(s) {
       : '';
 
   el.replaceChildren();
-  el.removeAttribute('data-kind');
+  box.removeAttribute('data-kind');
+  box.toggleAttribute('data-busy', status.kind === 'resolving' || status.kind === 'searching');
   if (status.kind === 'idle') return;
-  el.setAttribute('data-kind', status.kind);
+  box.setAttribute('data-kind', status.kind);
   if (status.kind === 'resolving') el.append(T.resolving);
-  else if (status.kind === 'searching') el.append(T.searching(fmt.monthUtc.format(status.from * 1000)));
+  else if (status.kind === 'searching') {
+    el.append(status.found ? T.collecting(status.found) : T.searching(fmt.monthUtc.format(status.from * 1000)));
+  }
   else if (status.kind === 'rate') el.append(T.rate(fmt.clock.format(status.resumeAt)));
   else if (status.kind === 'end') el.append(s.tweets.length ? T.end(fmt.full.format(s.t0)) : T.none);
   else if (status.kind === 'error') renderError(s, el, status.error);
@@ -137,10 +149,21 @@ function renderError(s, el, error) {
   }
 }
 
+// A grey outline of a card, standing in for posts that are still loading.
+function placeholder() {
+  return h(
+    'div',
+    { class: 'xo-skel' },
+    h('div', { class: 'xo-skel-avatar' }),
+    h('div', { class: 'xo-body' }, h('div', { class: 'xo-skel-line' }), h('div', { class: 'xo-skel-line' }), h('div', { class: 'xo-skel-line' })),
+  );
+}
+
 // ---- Cards ----
 
 // Adds cards to the end of the list, with a heading wherever a new month begins.
-export function appendCards(s, tweets) {
+// `fresh` cards have just been loaded and fade in; cards restored from memory or cache do not.
+export function appendCards(s, tweets, fresh) {
   if (!tweets.length) return;
   const frag = document.createDocumentFragment();
   for (const t of tweets) {
@@ -150,7 +173,9 @@ export function appendCards(s, tweets) {
       s.els.lastMonth = key;
       frag.append(h('div', { class: 'xo-month', text: fmt.month.format(d) }));
     }
-    frag.append(card(t));
+    const el = card(t);
+    if (fresh) el.classList.add('xo-in');
+    frag.append(el);
   }
   s.els.list.append(frag);
 }

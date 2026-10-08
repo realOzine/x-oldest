@@ -250,10 +250,10 @@ async function loadMore(s) {
   s.loading = true;
   let next = { kind: 'idle' };
   try {
-    const batch = await s.reader.next((p) => setStatus(s, { kind: 'searching', from: p.from }));
+    const batch = await s.reader.next((p) => setStatus(s, { kind: 'searching', from: p.from, found: p.found || 0 }));
     s.tweets.push(...batch);
     saveProgress(s, batch);
-    if (s.els && s.els.root.isConnected) view.appendCards(s, batch);
+    if (s.els && s.els.root.isConnected) view.appendCards(s, batch, true);
     if (s.reader.done) {
       s.done = true;
       next = { kind: 'end' };

@@ -72,7 +72,8 @@ export class Reader {
   }
 
   // Resolves to the next non-empty batch in ascending order, or to [] once `end` is reached.
-  // `onProgress({ from, to })` is called for each window as it is opened.
+  // `onProgress({ from, to, found })` is called before each request. `found` is the number of
+  // posts collected so far in the window, and is absent while the window is being opened.
   //
   // If a request fails this rejects, and the reader stays where it was: `pending` keeps the
   // pages already fetched, so calling next() again resumes the window instead of restarting it.
@@ -80,7 +81,7 @@ export class Reader {
     while (!this.done) {
       if (!this.pending) this.pending = await this.openWindow(onProgress);
       if (!this.pending) continue; // the window was empty or got resized; try the next one
-      await this.fillWindow(this.pending);
+      await this.fillWindow(this.pending, onProgress);
       const batch = this.closeWindow(this.pending);
       this.pending = null;
       if (batch.length) return batch;
@@ -124,8 +125,9 @@ export class Reader {
   // Walks `until` back to the start of the window, collecting pages into `w.got`.
   // A short page is taken as the start of the window. That saves one request per window and
   // can occasionally miss posts, which is the accepted trade for speed.
-  async fillWindow(w) {
+  async fillWindow(w, onProgress) {
     while (!w.complete) {
+      if (onProgress) onProgress({ from: w.a, to: w.b, found: w.got.size });
       const page = await this.page(w.a, w.until);
       const more = page.filter((t) => !w.got.has(t.id));
       more.forEach((t) => w.got.set(t.id, t));
