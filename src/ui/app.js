@@ -16,15 +16,19 @@ import * as view from './view.js';
 
 const DAY = 86400;
 const TICK_MS = 300;
+const MAX_MISSED_TICKS = 10; // how long the view stays on while the profile cannot be found
 const FLAG = 'xo-active'; // sessionStorage key
 const FIRST_POST_TIME = Date.UTC(2006, 2, 1) / 1000; // fallback start when the join date is unknown
 const RATE_RESET_MARGIN_MS = 3000; // waited beyond the reset time X reports
 const ANCHOR_PROBE_Y = 140; // just below X's sticky header
 const ANCHOR_SAVE_DELAY_MS = 800;
+const SETTLE_MS = 800; // how long the reading position is defended after it is restored
+const USER_SCROLL_EVENTS = ['wheel', 'touchstart', 'keydown', 'mousedown'];
 
 let engine = null; // { resolveUser, openReader }, handed to init()
 const sessions = new Map();
 let active = null;
+let missedTicks = 0; // consecutive ticks on the profile's URL without finding the profile
 let suspended = null; // { key, scrollY }; scrollY is null when the position comes from the cache
 
 // ---- Sessions ----
@@ -54,6 +58,7 @@ function getSession(p) {
       lastY: 0, // last scroll position, to return to after visiting a post
       anchor: null, // { id, offset }: the post at the top of the viewport
       anchorTimer: null,
+      release: null, // stops scrollToAnchor() from holding the position, while it is doing so
 
       // Cache
       skipCache: false, // set by restart(), which has just cleared the cache
@@ -85,18 +90,21 @@ function activate(p, restoreY) {
   view.mount(s, p);
   ensureTab(p);
   if (!s.reader && !s.loading) start(s);
-  if (restoreY == null) return;
-  // Back from a post. The list was rebuilt around the reading position, so that is what to
-  // return to; the old scroll offset only still holds above the list, in the profile header.
+  // Return to the reading position if there is one. `restoreY` is for coming back from a post
+  // when the reader was still above the list, in the profile header, where an offset still holds.
   if (s.anchor) scrollToAnchor(s);
   // Repeated because the page keeps settling for a moment after a route change.
-  else for (const delay of [0, 120, 400]) setTimeout(() => active === s && window.scrollTo(0, restoreY), delay);
+  else if (restoreY != null) for (const delay of [0, 120, 400]) setTimeout(() => active === s && window.scrollTo(0, restoreY), delay);
 }
 
 // `explicit` is a deliberate exit by the user, as opposed to navigating to a post and back.
 function deactivate(explicit) {
   if (explicit) setFlag(null);
   if (!active) return;
+  if (active.release) active.release();
+  // The view is still on screen here, so the position can be read fresh rather than trusting
+  // the last sample, which lags scrolling by up to ANCHOR_SAVE_DELAY_MS.
+  if (explicit) updateAnchor(active);
   saveProgress(active);
   active = null;
   document.documentElement.removeAttribute('data-xo-active');
@@ -204,13 +212,32 @@ function scrollToAnchor(s) {
   const a = s.anchor;
   const el = a && s.els && s.els.list.querySelector(`.xo-card[data-id="${a.id}"]`);
   if (!el) return;
-  // Repeated because card heights settle as off-screen cards are laid out.
+  if (s.release) s.release();
   const go = () => {
-    if (active === s && el.isConnected) window.scrollTo(0, window.scrollY + el.getBoundingClientRect().top - a.offset);
+    if (active !== s || !el.isConnected) return;
+    const off = el.getBoundingClientRect().top - a.offset;
+    if (Math.abs(off) >= 1) window.scrollTo(0, window.scrollY + off);
   };
-  go();
-  setTimeout(go, 150);
-  setTimeout(go, 500);
+  // Scrolling there once is not enough. X restores a scroll position of its own shortly after a
+  // route change, and cards change height as they are laid out. So for a moment the position is
+  // held: it is corrected in every animation frame, which runs before the frame is painted, so
+  // the reader never sees the page anywhere else. The user scrolling ends the hold.
+  let frame = 0;
+  const hold = () => {
+    go();
+    frame = requestAnimationFrame(hold);
+  };
+  const release = () => {
+    if (s.release !== release) return;
+    s.release = null;
+    cancelAnimationFrame(frame);
+    clearTimeout(timer);
+    for (const type of USER_SCROLL_EVENTS) window.removeEventListener(type, release, true);
+  };
+  s.release = release;
+  const timer = setTimeout(release, SETTLE_MS);
+  for (const type of USER_SCROLL_EVENTS) window.addEventListener(type, release, { capture: true, passive: true });
+  hold();
 }
 
 // ---- Loading ----
@@ -309,8 +336,9 @@ function ensureTab(p) {
   }
 }
 
-// Our tab toggles the view. From another profile tab (Replies, Media…) it first goes to the
-// profile's main tab, and tick() turns the view on once that has rendered.
+// Our tab toggles the view. From another profile tab (Replies, Media…) it also goes to the
+// profile's main tab. The view is turned on in the same step, without waiting for X to render
+// that tab, so X's own timeline is never on screen in between.
 function onOurTabClick(e) {
   e.preventDefault();
   e.stopPropagation();
@@ -319,8 +347,8 @@ function onOurTabClick(e) {
   if (active && active.key === now.key) deactivate(true);
   else if (page.onProfileRoot(now.key)) activate(now);
   else {
-    suspended = { key: now.key, scrollY: 0 };
     navigate('/' + now.sn);
+    activate(now);
   }
 }
 
@@ -344,11 +372,15 @@ function tick() {
   const p = page.findProfile();
   if (p) ensureTab(p);
   if (active) {
-    if (!p || p.key !== active.key || !page.onProfileRoot(active.key)) {
+    // On the profile's URL without a profile, X is most likely between renders: leave the view
+    // on and look again. If it stays that way, something is wrong and X gets its page back.
+    missedTicks = p ? 0 : missedTicks + 1;
+    if (!page.onProfileRoot(active.key) || missedTicks > MAX_MISSED_TICKS) {
       // The user navigated away. Remember where they were in case they come back.
+      missedTicks = 0;
       suspended = { key: active.key, scrollY: active.lastY };
       deactivate();
-    } else if (view.mount(active, p)) {
+    } else if (p && view.mount(active, p)) {
       // X re-rendered the page and the view had to be rebuilt; put the reader back in place.
       scrollToAnchor(active);
     }
@@ -412,11 +444,20 @@ export function init(api) {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && active && active.near) loadMore(active);
   });
-  setInterval(() => {
+  const safeTick = () => {
     try {
       tick();
     } catch (e) {
       console.warn('[x-oldest]', e);
     }
-  }, TICK_MS);
+  };
+  setInterval(safeTick, TICK_MS);
+  // Coming back to a profile, look again at once and a few more times while X renders, rather
+  // than up to TICK_MS later.
+  window.addEventListener('popstate', () => {
+    // Only to turn the view on sooner. Turning it off is left to the regular tick, by which time
+    // X has replaced the page; doing it earlier would uncover X's old timeline for a moment.
+    if (active) return;
+    for (const ms of [0, 60, 150]) setTimeout(safeTick, ms);
+  });
 }
