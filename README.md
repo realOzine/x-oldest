@@ -25,7 +25,7 @@ Requires Node.js 18 or later.
 - `npm run watch` rebuilds on every change. After a rebuild, reload the extension in `chrome://extensions`, then reload the x.com page.
 - `npm run release` builds, then writes the loadable extension to `release/x-oldest/` and zips it as `release/x-oldest-<version>.zip`.
 
-To publish a release, set `version` in `manifest.json`, commit, and push a matching tag (`v<version>`). GitHub Actions builds the zip and attaches it to a new release.
+To publish a release, run `npm version patch` (or `minor`, `major`), then `git push --follow-tags`. `npm version` bumps `package.json` and `manifest.json` together, commits, and tags; GitHub Actions then builds the zip and attaches it to a new release.
 
 ## Project structure
 
@@ -53,6 +53,7 @@ src/ui/                Reading view, bundled into dist/ui.js
 icons/                 Extension icons
 scripts/make-icons.mjs Regenerates the icons
 scripts/release.mjs    Packages the extension
+scripts/sync-version.mjs Copies the version into manifest.json
 docs/architecture.md   Architecture notes (Chinese)
 docs/spce.md           Original spec (Chinese)
 ```

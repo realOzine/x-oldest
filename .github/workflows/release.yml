@@ -1,5 +1,5 @@
 # Publishes a GitHub release with the packaged extension whenever a version tag is pushed.
-# To release: set "version" in manifest.json, commit, then `git tag v<version> && git push --tags`.
+# To release: `npm version <patch|minor|major>`, then `git push --follow-tags`.
 name: Release
 
 on:

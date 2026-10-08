@@ -25,7 +25,7 @@
 - `npm run watch`：每次改动后自动重新构建。构建后先在 `chrome://extensions` 重新加载插件，再刷新 x.com 页面。
 - `npm run release`：先构建，再把可加载的插件写到 `release/x-oldest/`，并压缩为 `release/x-oldest-<版本号>.zip`。
 
-发布新版本：修改 `manifest.json` 里的 `version`，提交，再推送对应的标签（`v<版本号>`）。GitHub Actions 会自动构建压缩包并挂到新的发布上。
+发布新版本：运行 `npm version patch`（或 `minor`、`major`），再运行 `git push --follow-tags`。`npm version` 会同时更新 `package.json` 和 `manifest.json` 的版本号，并自动提交、打标签；之后 GitHub Actions 会构建压缩包并挂到新的发布上。
 
 ## 项目结构
 
@@ -53,6 +53,7 @@ src/ui/                阅读界面，打包为 dist/ui.js
 icons/                 扩展图标
 scripts/make-icons.mjs 重新生成图标
 scripts/release.mjs    打包插件
+scripts/sync-version.mjs 把版本号同步到 manifest.json
 docs/architecture.md   架构说明
 docs/spce.md           原始需求文档
 ```
